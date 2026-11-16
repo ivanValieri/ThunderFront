@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050e22">
+  <title>ThunderFront - Air Combat</title>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="userbar" hidden></div>
+
+  <div id="auth" class="overlay" hidden>
+    <div class="card">
+      <h1>THUNDERFRONT</h1>
+      <p class="sub">AIR COMBAT</p>
+
+      <div id="tabs" class="tabs" role="group" aria-label="Acesso">
+        <button type="button" data-mode="login" class="on">Entrar</button>
+        <button type="button" data-mode="signup">Criar conta</button>
+      </div>
+
+      <form id="authForm" novalidate>
+        <label id="emailField" class="field">E-mail
+          <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+        </label>
+        <label id="passField" class="field"><span id="passText">Senha</span>
+          <input id="pass" type="password" autocomplete="current-password">
+        </label>
+        <label id="pass2Field" class="field" hidden>Repita a nova senha
+          <input id="pass2" type="password" autocomplete="new-password">
+        </label>
+        <button id="submit" class="primary" type="submit">Entrar</button>
+      </form>
+
+      <p id="msg" role="status" aria-live="polite"></p>
+
+      <div class="links">
+        <button id="forgot" class="link" type="button">Esqueci minha senha</button>
+        <button id="back" class="link" type="button" hidden>Voltar para o login</button>
+        <button id="guest" class="link" type="button">Jogar sem conta (só neste aparelho)</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+:root {
+  --bg: #050e22;
+  --panel: #0b1d3a;
+  --line: rgba(159, 196, 255, .28);
+  --text: #eaf2ff;
+  --muted: #9fc4ff;
+  --gold: #ffc400;
+  --err: #ff8a7a;
+  --ok: #7cfc9a;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+canvas { display: block; touch-action: none; }
+[hidden] { display: none !important; }
+
+/* Barra do piloto (só aparece no hangar) */
+#userbar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 12px;
+  font-size: 13px;
+  background: rgba(3, 10, 26, .78);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+#userbar button {
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+#userbar button:hover { color: var(--text); }
+body[data-mode="play"] #userbar,
+body[data-mode="over"] #userbar { display: none; }
+
+/* Tela de acesso */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: auto;
+  background: rgba(3, 10, 26, .8);
+  backdrop-filter: blur(6px);
+}
+.card {
+  width: 100%;
+  max-width: 360px;
+  margin: auto;
+  padding: 26px 20px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: .04em;
+}
+.sub {
+  margin: 2px 0 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .32em;
+  color: var(--gold);
+}
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tabs button {
+  font: inherit;
+  font-weight: 600;
+  padding: 11px 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.tabs button.on { color: #1a1300; background: var(--gold); }
+.field { display: block; margin-bottom: 14px; font-size: 14px; color: var(--muted); }
+.field input {
+  display: block;
+  width: 100%;
+  height: 46px;
+  margin-top: 6px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: #06122a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.primary {
+  width: 100%;
+  height: 48px;
+  font: inherit;
+  font-weight: 700;
+  color: #1a1300;
+  background: var(--gold);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.primary:disabled { opacity: .55; cursor: wait; }
+#msg { min-height: 1.5em; margin: 12px 0 4px; font-size: 14px; line-height: 1.4; }
+#msg.err { color: var(--err); }
+#msg.ok { color: var(--ok); }
+.links { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.link {
+  font: inherit;
+  font-size: 14px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  padding: 8px 0;
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: left;
+}
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
