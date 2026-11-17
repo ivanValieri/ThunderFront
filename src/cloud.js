@@ -1,0 +1,32 @@
+import { supabase } from './supabase.js'
+
+// Estado da conta do jogador logado (vem do servidor; o jogo só lê e pede ações)
+export const cloud = { user: null, state: null }
+
+export async function refresh() {
+  if (!cloud.user) { cloud.state = null; return null }
+  const { data, error } = await supabase.rpc('get_my_state')
+  if (error) { console.error(error); return cloud.state }
+  cloud.state = data
+  return data
+}
+
+// Envia o resultado da partida; o servidor valida e credita as moedas
+export async function submitRun(mode, score, stage, durationSec) {
+  const { data, error } = await supabase.rpc('submit_run', {
+    p_mode: mode,
+    p_score: Math.floor(score),
+    p_stage: stage,
+    p_duration: Math.round(durationSec),
+  })
+  if (error) { console.error(error); return { error: error.message || 'erro' } }
+  await refresh()
+  return data
+}
+
+export async function chooseCloudPlane(planeId) {
+  const { error } = await supabase.rpc('select_plane', { p_plane_id: planeId })
+  if (error) { console.error(error); return false }
+  if (cloud.state) cloud.state.selected = planeId
+  return true
+}

@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js'
+import { cloud, refresh } from './cloud.js'
 
 const $ = (id) => document.getElementById(id)
 const ALL = ['tabs', 'emailField', 'passField', 'pass2Field', 'forgot', 'back', 'guest']
@@ -13,6 +14,7 @@ let mode = 'login'
 let session = null
 let recovering = false
 let nick = ''
+let lastUid = null
 
 const store = {
   get: (k) => { try { return localStorage.getItem(k) } catch { return null } },
@@ -58,11 +60,24 @@ function openAuth(m = 'login') {
   setTimeout(() => { const el = m === 'recovery' ? $('pass') : $('email'); if (el) el.focus() }, 50)
 }
 
-async function loadNick() {
-  try {
-    const { data } = await supabase.from('profiles').select('nickname').eq('id', session.user.id).maybeSingle()
-    nick = (data && data.nickname) || 'Piloto'
-  } catch (e) { console.error(e); nick = 'Piloto' }
+async function loadAccount() {
+  const uid = session.user.id
+  if (uid !== lastUid || !cloud.state) {
+    cloud.user = session.user
+    await refresh()
+    lastUid = uid
+    window.dispatchEvent(new window.Event('tf-cloud'))
+  }
+  nick = (cloud.state && cloud.state.nickname) || 'Piloto'
+}
+
+function dropAccount() {
+  if (lastUid || cloud.user) {
+    lastUid = null
+    cloud.user = null
+    cloud.state = null
+    window.dispatchEvent(new window.Event('tf-cloud'))
+  }
 }
 
 async function editNick() {
@@ -73,6 +88,7 @@ async function editNick() {
   const { error } = await supabase.from('profiles').update({ nickname: v }).eq('id', session.user.id)
   if (error) { console.error(error); alert('Não foi possível salvar o apelido. Tente novamente.'); return }
   nick = v
+  if (cloud.state) cloud.state.nickname = v
   renderBar()
 }
 
@@ -104,11 +120,13 @@ async function render() {
   } else if (session) {
     store.del('tf_guest')
     $('auth').hidden = true
-    await loadNick()
+    await loadAccount()
   } else if (store.get('tf_guest') === '1') {
+    dropAccount()
     $('auth').hidden = true
-  } else if ($('auth').hidden) {
-    openAuth('login')
+  } else {
+    dropAccount()
+    if ($('auth').hidden) openAuth('login')
   }
   renderBar()
 }

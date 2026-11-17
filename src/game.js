@@ -10,6 +10,7 @@ import bg4 from './assets/backgrounds/fase4.jpg'
 import bg5 from './assets/backgrounds/fase5.jpg'
 import bg6 from './assets/backgrounds/fase6.jpg'
 import bg7 from './assets/backgrounds/fase7.jpg'
+import { cloud, submitRun, chooseCloudPlane } from './cloud.js'
 const PL_URLS=[pl0,pl1,pl2,pl3],BOSS_URLS=[boss1],BG_URLS=[bg1,bg2,bg3,bg4,bg5,bg6,bg7]
 const C=document.getElementById('c'),X=C.getContext('2d'),W=480,H=854;C.width=W*2;C.height=H*2;
 let sc=1;function fit(){sc=Math.min(innerWidth/W,innerHeight/H);C.style.width=W*sc+'px';C.style.height=H*sc+'px'}
@@ -24,7 +25,15 @@ let SAVE={coins:0,owned:['comum'],sel:0};try{const s=JSON.parse(localStorage.get
 if(!(SAVE.sel>=0&&SAVE.sel<PLANES.length))SAVE.sel=0;
 function persist(){try{localStorage.setItem('tf_save',JSON.stringify(SAVE))}catch(e){}}
 let bi=SAVE.sel,toast='',toastT=0;
-function reset(){S={t:0,score:0,stage:1,sp:1,sm:6,bt:40,boss:null,tr:{t:2.8,done:true}};const pl=PLANES[SAVE.sel];P={x:W/2,y:H-110,lives:pl.lives,inv:2,cd:0,level:1,pl};E=[];PB=[];EB=[];PU=[];PT=[]}
+let playIdx=SAVE.sel;
+const logged=()=>!!(cloud.user&&cloud.state);
+const coinsNow=()=>logged()?cloud.state.coins:SAVE.coins;
+const ownsId=id=>logged()?cloud.state.owned.includes(id):SAVE.owned.includes(id);
+const selId=()=>logged()?cloud.state.selected:PLANES[SAVE.sel].id;
+const bestNow=()=>logged()?((cloud.state.best||{}).historia||0):hi;
+const errMsg=e=>e&&e.includes('too_fast')?'Aguarde alguns segundos entre as partidas.':e&&e.includes('implausible')?'O servidor recusou esta pontuação.':'Verifique a conexão e tente de novo.';
+addEventListener('tf-cloud',()=>{const i=PLANES.findIndex(p=>p.id===selId());bi=i>=0?i:0});
+function reset(){S={t:0,score:0,stage:1,sp:1,sm:6,bt:40,boss:null,tr:{t:2.8,done:true},t0:performance.now(),sync:''};const pl=PLANES[playIdx];P={x:W/2,y:H-110,lives:pl.lives,inv:2,cd:0,level:1,pl};E=[];PB=[];EB=[];PU=[];PT=[]}
 function plane(x,y,s,c1,c2,down){X.save();X.translate(x,y);if(down)X.scale(1,-1);X.scale(s,s);
 X.fillStyle=c2;X.beginPath();X.moveTo(0,-14);X.lineTo(22,6);X.lineTo(22,11);X.lineTo(0,5);X.lineTo(-22,11);X.lineTo(-22,6);X.closePath();X.fill();
 X.fillRect(-9,12,18,3);X.fillStyle=c1;X.beginPath();X.ellipse(0,0,5,16,0,0,7);X.fill();
@@ -47,7 +56,7 @@ function kill(e){boom(e.x,e.y,e.k?50:14);S.score+=[100,500,3000][e.k];
 if(e.k||Math.random()<.07)PU.push({x:e.x,y:e.y});if(e.k==2){PU.push({x:e.x-40,y:e.y});PU.push({x:e.x+40,y:e.y});S.boss=null;S.tr={t:0,done:false};EB=[]}
 E.splice(E.indexOf(e),1)}
 function hurt(){if(P.inv>0)return;boom(P.x,P.y,40,'#9fd8ff');P.lives--;P.inv=2;P.level=Math.max(1,P.level-1);EB=[];
-if(P.lives<=0){mode='over';S.ot=0;S.earned=Math.floor(S.score/10);SAVE.coins+=S.earned;persist();if(S.score>hi){hi=S.score;try{localStorage.setItem('tf_hi',hi)}catch(e){}}}}
+if(P.lives<=0){mode='over';S.ot=0;if(logged()){S.sync='saving';S.earned=0;submitRun('historia',S.score,S.stage,Math.max((performance.now()-S.t0)/1000,S.t)).then(r=>{if(r&&!r.error){S.earned=r.coins_earned;S.record=r.is_record;S.sync='ok'}else{S.sync='err';S.err=(r&&r.error)||''}})}else{S.earned=Math.floor(S.score/10);SAVE.coins+=S.earned;persist()}if(S.score>hi){hi=S.score;try{localStorage.setItem('tf_hi',hi)}catch(e){}}}}
 function update(dt){S.t+=dt;bgY+=60*dt;
 if(S.tr){const T=S.tr;T.t+=dt;if(T.t>=2.8&&!T.done){T.done=true;S.stage++;S.bt=40;E=[];PB=[];EB=[];PU=[];PT=[];P.x=W/2;P.y=H-110}if(T.t>=4.2)S.tr=null}
 const dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
@@ -81,10 +90,10 @@ for(const e of E){if(e.k==0)plane(e.x,e.y,.9,e.f>0?'#fff':'#2e8b57',e.f>0?'#fff'
 if(e.k==2){X.fillStyle='#0008';X.fillRect(60,76,W-120,8);X.fillStyle='#ff4a1c';X.fillRect(60,76,(W-120)*e.hp/e.max,8)}}
 X.fillStyle=P.pl.bc;for(const b of PB)X.fillRect(b.x-2,b.y-9,4,16);
 for(const b of EB){X.fillStyle='#ff5a36';X.beginPath();X.arc(b.x,b.y,5,0,7);X.fill();X.fillStyle='#fff';X.beginPath();X.arc(b.x,b.y,2,0,7);X.fill()}
-if(mode!='over'&&(P.inv<=0||Math.floor(S.t*12)%2)){const im=PLIMG[SAVE.sel];if(im.naturalWidth){const w=68,h=w*im.naturalHeight/im.naturalWidth;X.drawImage(im,P.x-w/2,P.y-h/2,w,h)}}
+if(mode!='over'&&(P.inv<=0||Math.floor(S.t*12)%2)){const im=PLIMG[playIdx];if(im.naturalWidth){const w=68,h=w*im.naturalHeight/im.naturalWidth;X.drawImage(im,P.x-w/2,P.y-h/2,w,h)}}
 for(const p of PT){X.globalAlpha=Math.min(1,p.l*2.5);X.fillStyle=p.c;X.fillRect(p.x-2,p.y-2,4,4)}X.globalAlpha=1;
 txt('PONTOS '+S.score,14,30,20,'#fff','left');txt('RECORDE '+Math.max(hi,S.score),W-14,30,14,'#cfe3ff','right');
-txt('FASE '+S.stage+'   ARMA '+P.level,14,52,13,'#cfe3ff','left');for(let i=0;i<P.lives;i++){const im=PLIMG[SAVE.sel];if(im.naturalWidth)X.drawImage(im,W-32-i*26,44,22,22*im.naturalHeight/im.naturalWidth)}
+txt('FASE '+S.stage+'   ARMA '+P.level,14,52,13,'#cfe3ff','left');for(let i=0;i<P.lives;i++){const im=PLIMG[playIdx];if(im.naturalWidth)X.drawImage(im,W-32-i*26,44,22,22*im.naturalHeight/im.naturalWidth)}
 if(S.tr&&mode=='play'){const T=S.tr.t;let r=490;if(T>2&&T<2.8)r=490*(1-(T-2)/.8);else if(T>=2.8&&T<3.3)r=0;else if(T>=3.3)r=490*Math.min(1,(T-3.3)/.9);
 if(r<490){X.fillStyle='#000';X.beginPath();X.rect(0,0,W,H);X.arc(W/2,H/2,Math.max(r,0),0,7);X.fill('evenodd')}
 if(T>.2&&T<2)txt('FASE CONCLUÍDA!',W/2,H/2,34,'#ffe066');
@@ -96,21 +105,27 @@ if(mode=='title'){X.setTransform(2,0,0,2,0,0);drawBG();drawHangar()}else draw();
 requestAnimationFrame(loop)}
 function start(){reset();mode='play'}
 function goTitle(){reset();mode='title'}
-function drawHangar(){const p=PLANES[bi],own=SAVE.owned.includes(p.id),t=performance.now()/1000;
+function drawHangar(){const p=PLANES[bi],own=ownsId(p.id),t=performance.now()/1000;
 X.fillStyle='rgba(2,10,30,.72)';X.fillRect(0,0,W,H);
-txt('THUNDERFRONT',W/2,92,38);txt('AIR COMBAT  •  HANGAR',W/2,120,14,'#9fc4ff');txt('MOEDAS  '+SAVE.coins,W/2,152,20,'#ffd23f');
+txt('THUNDERFRONT',W/2,92,38);txt('AIR COMBAT  •  HANGAR',W/2,120,14,'#9fc4ff');txt('MOEDAS  '+coinsNow(),W/2,152,20,'#ffd23f');txt(logged()?'Conta conectada  •  progresso salvo na nuvem':'Visitante  •  progresso só neste aparelho',W/2,176,12,'#9fc4ff');
 const im=PLIMG[bi];if(im.naturalWidth){const w=230,h=w*im.naturalHeight/im.naturalWidth;X.globalAlpha=own?1:.35;X.drawImage(im,W/2-w/2,330-h/2+Math.sin(t*2)*6,w,h);X.globalAlpha=1}
 if(!own)txt('BLOQUEADO',W/2,340,26,'#fff');
 txt('◀',44,340,40,'#9fc4ff');txt('▶',W-44,340,40,'#9fc4ff');
-txt(p.nome.toUpperCase(),W/2,470,32,p.cor);txt((bi+1)+' / '+PLANES.length+(SAVE.sel==bi&&own?'  •  EM USO':''),W/2,494,13,'#cfe3ff');
+txt(p.nome.toUpperCase(),W/2,470,32,p.cor);txt((bi+1)+' / '+PLANES.length+(selId()==p.id&&own?'  •  EM USO':''),W/2,494,13,'#cfe3ff');
 [['VIDAS',p.lives/5],['DANO',p.dmg/2.2],['CADÊNCIA',.13/p.cd/1.5]].forEach((r,i)=>{const y=530+i*28;txt(r[0],70,y+9,13,'#cfe3ff','left');X.fillStyle='#fff3';X.fillRect(180,y,230,10);X.fillStyle=p.cor;X.fillRect(180,y,230*Math.min(1,r[1]),10)});
-const can=own||SAVE.coins>=p.cost;X.fillStyle=can?p.cor:'#555';X.fillRect(W/2-140,640,280,56);
-txt(own?'JOGAR':(can?'COMPRAR  '+p.cost:'FALTAM '+(p.cost-SAVE.coins)+' MOEDAS'),W/2,676,22,can?'#111':'#ccc');
-txt('Toque nas laterais ou use ← → para trocar de avião',W/2,740,13,'#9fc4ff');txt('Recorde: '+hi,W/2,766,14,'#cfe3ff');
+const can=own||(!logged()&&SAVE.coins>=p.cost);X.fillStyle=can?p.cor:'#555';X.fillRect(W/2-140,640,280,56);
+txt(own?'JOGAR':(logged()?'COMPRA EM BREVE':(can?'COMPRAR  '+p.cost:'FALTAM '+(p.cost-SAVE.coins)+' MOEDAS')),W/2,676,22,can?'#111':'#ccc');
+txt('Toque nas laterais ou use ← → para trocar de avião',W/2,740,13,'#9fc4ff');txt('Recorde: '+bestNow(),W/2,766,14,'#cfe3ff');
 if(performance.now()<toastT)txt(toast,W/2,616,20,'#7CFC9A')}
-function drawOver(){X.fillStyle='#000b';X.fillRect(0,0,W,H);txt('FIM DE JOGO',W/2,H/2-80,44);txt('Pontos: '+S.score,W/2,H/2-30,22,'#ffe066');txt('+'+S.earned+' moedas',W/2,H/2+10,22,'#ffd23f');txt('Total: '+SAVE.coins+' moedas',W/2,H/2+40,15,'#cfe3ff');if(S.ot>.8)txt('Toque para voltar ao hangar',W/2,H/2+100,16,'#9fc4ff')}
-function hangarBtn(){const p=PLANES[bi];if(SAVE.owned.includes(p.id)){SAVE.sel=bi;persist();start()}else if(SAVE.coins>=p.cost){SAVE.coins-=p.cost;SAVE.owned.push(p.id);SAVE.sel=bi;persist();toast='Avião desbloqueado!';toastT=performance.now()+1800}}
-function act(k){if(mode=='title'){if(k=='ArrowLeft')bi=(bi+PLANES.length-1)%PLANES.length;else if(k=='ArrowRight')bi=(bi+1)%PLANES.length;else if(k=='Enter'||k==' ')hangarBtn()}else if(mode=='over'&&S.ot>.8&&(k=='Enter'||k==' '))goTitle()}
+function drawOver(){X.fillStyle='#000b';X.fillRect(0,0,W,H);txt('FIM DE JOGO',W/2,H/2-80,44);txt('Pontos: '+S.score,W/2,H/2-30,22,'#ffe066');
+if(logged()){if(S.sync=='saving')txt('Salvando na conta...',W/2,H/2+10,18,'#9fc4ff');else if(S.sync=='ok'){txt('+'+S.earned+' moedas'+(S.record?'  •  NOVO RECORDE!':''),W/2,H/2+10,22,'#ffd23f');txt('Total: '+cloud.state.coins+' moedas',W/2,H/2+40,15,'#cfe3ff')}else{txt('Não foi possível salvar esta partida.',W/2,H/2+10,16,'#ff8a7a');txt(errMsg(S.err),W/2,H/2+34,13,'#cfe3ff')}}
+else{txt('+'+S.earned+' moedas',W/2,H/2+10,22,'#ffd23f');txt('Total: '+SAVE.coins+' moedas',W/2,H/2+40,15,'#cfe3ff')}
+if(S.ot>.8&&S.sync!='saving')txt('Toque para voltar ao hangar',W/2,H/2+100,16,'#9fc4ff')}
+function hangarBtn(){const p=PLANES[bi];
+if(ownsId(p.id)){playIdx=bi;if(logged()){chooseCloudPlane(p.id);start()}else{SAVE.sel=bi;persist();start()}}
+else if(logged()){toast='A compra de aviões chega na próxima etapa.';toastT=performance.now()+2200}
+else if(SAVE.coins>=p.cost){SAVE.coins-=p.cost;SAVE.owned.push(p.id);SAVE.sel=bi;persist();toast='Avião desbloqueado!';toastT=performance.now()+1800}}
+function act(k){if(mode=='title'){if(k=='ArrowLeft')bi=(bi+PLANES.length-1)%PLANES.length;else if(k=='ArrowRight')bi=(bi+1)%PLANES.length;else if(k=='Enter'||k==' ')hangarBtn()}else if(mode=='over'&&S.ot>.8&&S.sync!='saving'&&(k=='Enter'||k==' '))goTitle()}
 
 reset();requestAnimationFrame(loop);
 addEventListener('keydown',e=>{if(e.target&&e.target.closest&&e.target.closest('#auth'))return;keys[e.key]=1;act(e.key);if(e.key.startsWith('Arrow'))e.preventDefault()});
@@ -118,6 +133,6 @@ addEventListener('keyup',e=>keys[e.key]=0);
 let drag=null;C.addEventListener('pointerdown',e=>{const r=C.getBoundingClientRect(),lx=(e.clientX-r.left)/r.width*W,ly=(e.clientY-r.top)/r.height*H;
 if(mode=='play'){drag={x:e.clientX,y:e.clientY};C.setPointerCapture(e.pointerId)}
 else if(mode=='title'){if(ly>630&&ly<706&&Math.abs(lx-W/2)<150)hangarBtn();else if(ly>180&&ly<600)act(lx<W/2?'ArrowLeft':'ArrowRight')}
-else if(mode=='over'&&S.ot>.8)goTitle()});
+else if(mode=='over'&&S.ot>.8&&S.sync!='saving')goTitle()});
 C.addEventListener('pointermove',e=>{if(!drag||mode!='play')return;P.x=Math.max(20,Math.min(W-20,P.x+(e.clientX-drag.x)/sc*1.3));P.y=Math.max(40,Math.min(H-30,P.y+(e.clientY-drag.y)/sc*1.3));drag={x:e.clientX,y:e.clientY}});
 C.addEventListener('pointerup',()=>drag=null);C.addEventListener('pointercancel',()=>drag=null);
