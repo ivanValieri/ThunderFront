@@ -30,3 +30,11 @@ export async function chooseCloudPlane(planeId) {
   if (cloud.state) cloud.state.selected = planeId
   return true
 }
+
+// Compra de avião: o servidor confere saldo e posse, desconta as moedas e libera o avião
+export async function buyCloudPlane(planeId) {
+  const { data, error } = await supabase.rpc('buy_plane', { p_plane_id: planeId })
+  if (error) { console.error(error); return { error: error.message || 'erro' } }
+  await refresh()
+  return data
+}

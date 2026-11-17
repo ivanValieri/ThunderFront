@@ -60,13 +60,19 @@ function openAuth(m = 'login') {
   setTimeout(() => { const el = m === 'recovery' ? $('pass') : $('email'); if (el) el.focus() }, 50)
 }
 
+let loading = null
 async function loadAccount() {
   const uid = session.user.id
   if (uid !== lastUid || !cloud.state) {
-    cloud.user = session.user
-    await refresh()
-    lastUid = uid
-    window.dispatchEvent(new window.Event('tf-cloud'))
+    if (!loading) {
+      loading = (async () => {
+        cloud.user = session.user
+        await refresh()
+        lastUid = uid
+        window.dispatchEvent(new window.Event('tf-cloud'))
+      })().finally(() => { loading = null })
+    }
+    await loading
   }
   nick = (cloud.state && cloud.state.nickname) || 'Piloto'
 }
