@@ -12,12 +12,14 @@ export async function refresh() {
 }
 
 // Envia o resultado da partida; o servidor valida e credita as moedas
-export async function submitRun(mode, score, stage, durationSec) {
+export async function submitRun(mode, stage, durationSec, kills, bosses, coins) {
   const { data, error } = await supabase.rpc('submit_run', {
     p_mode: mode,
-    p_score: Math.floor(score),
     p_stage: stage,
     p_duration: Math.round(durationSec),
+    p_kills: kills,
+    p_bosses: bosses,
+    p_coins: Math.floor(coins),
   })
   if (error) { console.error(error); return { error: error.message || 'erro' } }
   await refresh()
