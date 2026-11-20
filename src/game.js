@@ -25,6 +25,7 @@ import dBomb from './assets/drops/bomba.png'
 import dShield from './assets/drops/escudo.png'
 import dChest from './assets/drops/bau-suprimentos.png'
 import dCore from './assets/drops/nucleo-energia.png'
+import { unlockAudio, syncAudio, playSfx, toggleMute, isMuted } from './audio.js'
 import { XP_TABLE, xpForRun, levelFromXp, levelProgress, powerOf, COIN } from './economy.js'
 import { cloud, submitRun, chooseCloudPlane, buyCloudPlane } from './cloud.js'
 const PL_URLS=[pl0,pl1,pl2,pl3],BOSS_URLS=[boss1],BG_URLS=[bg1,bg2,bg3,bg4,bg5,bg6,bg7]
@@ -103,7 +104,7 @@ function useSkill(i){if(mode!='play'||(S.tr&&S.tr.t>2))return;const s=SKILLS[i],
  else if(st=='ready'){P.energy-=s.cost;P.scd[i]=s.cd;if(s.id=='laser'){P.laser=2.5;ft('LASER!',x,y,'#7fe6ff')}}}
 function cmdTap(lx,ly){const b=CMD.bomb;if(Math.hypot(lx-b.x,ly-b.y)<b.r+8){useBomb();return true}
  for(let i=0;i<4;i++){const c=CMD.skills[i];if(Math.hypot(lx-c.x,ly-c.y)<c.r+8){useSkill(i);return true}}return false}
-function useBomb(){if(mode!='play'||P.bombs<=0||(S.tr&&S.tr.t>2))return;P.bombs--;EB=[];S.flash=.4;
+function useBomb(){if(mode!='play'||P.bombs<=0||(S.tr&&S.tr.t>2))return;P.bombs--;EB=[];S.flash=.4;playSfx('bomba');
  EX.push({x:W/2,y:H/2,t:0,s:460});for(let i=0;i<5;i++)EX.push({x:60+Math.random()*(W-120),y:80+Math.random()*(H-220),t:-i*.07,s:120+Math.random()*80});
  for(const e of E.slice()){if(e.y>-30){e.hp-=e.k==2?40:e.k==1?40:99;e.f=.1;if(e.hp<=0)kill(e)}}}
 function kill(e){boom(e.x,e.y,e.k?14:6);explode(e);if(e.k==0){S.kills.caca++;P.energy=Math.min(100,P.energy+1)}else if(e.k==1){S.kills.bomb++;P.energy=Math.min(100,P.energy+6)}else{S.bosses++;P.energy=Math.min(100,P.energy+15)}
@@ -159,6 +160,11 @@ function drawCmd(){const t=performance.now()/1000,en=P.energy;
   if(st=='locked')txt('Nv '+s.lv,c.x,c.y+c.r+13,11,'#9fb0c8');else if(st=='soon')txt('em breve',c.x,c.y+c.r+13,11,'#9fb0c8')}
  const b=CMD.bomb,bm=DROPIMG.bomb;X.beginPath();X.arc(b.x,b.y,b.r+4,0,7);X.fillStyle='rgba(5,14,34,.7)';X.fill();X.strokeStyle='rgba(255,154,138,'+(P.bombs>0?.5+.3*Math.sin(t*4):.2)+')';X.lineWidth=3;X.stroke();
  X.globalAlpha=P.bombs>0?1:.35;if(bm.naturalWidth)X.drawImage(bm,b.x-b.r,b.y-b.r,2*b.r,2*b.r*bm.naturalHeight/bm.naturalWidth);X.globalAlpha=1;txt('x'+P.bombs,b.x+b.r-4,b.y+b.r+4,15,'#fff')}
+function drawSnd(){const m=isMuted(),x=W/2,y=24;X.globalAlpha=.88;X.fillStyle='rgba(5,14,34,.72)';X.beginPath();X.arc(x,y,16,0,7);X.fill();const c=m?'#8a99b0':'#9fe3ff';X.strokeStyle=c;X.fillStyle=c;X.lineWidth=2;
+ X.beginPath();X.moveTo(x-7,y-3);X.lineTo(x-3,y-3);X.lineTo(x+2,y-8);X.lineTo(x+2,y+8);X.lineTo(x-3,y+3);X.lineTo(x-7,y+3);X.closePath();X.fill();
+ if(m){X.beginPath();X.moveTo(x+6,y-5);X.lineTo(x+13,y+5);X.moveTo(x+13,y-5);X.lineTo(x+6,y+5);X.stroke()}else{X.beginPath();X.arc(x+3,y,6,-.9,.9);X.stroke();X.beginPath();X.arc(x+3,y,10,-.9,.9);X.stroke()}
+ X.globalAlpha=1}
+function audioTick(){syncAudio({music:mode=='play'?(S.boss?'chefe':'combate'):mode=='over'?null:'safe',gun:(mode=='play'&&!(S.tr&&S.tr.t>2))?((P.level>=3||P.pl.cd<.11)?'tiro-rapido':'tiro-comum'):null})}
 function draw(){X.setTransform(2,0,0,2,0,0);drawBG();
 for(const p of PU){const im=DROPIMG[p.t];if(!im||!im.naturalWidth)continue;const w=DSZ[p.t]*(1+.06*Math.sin(S.t*6+p.x)),h=w*im.naturalHeight/im.naturalWidth;X.drawImage(im,p.x-w/2,p.y-h/2,w,h)}
 for(const e of E){if(e.k==0){if(!sprite(FIGHTERS[e.v],e.x,e.y,56,e.f,1))plane(e.x,e.y,.9,e.f>0?'#fff':'#2e8b57',e.f>0?'#fff':'#1d6a40',true)}
@@ -177,14 +183,14 @@ if(S.flash>0){X.fillStyle='rgba(255,240,200,'+Math.min(.8,S.flash*2)+')';X.fillR
 for(const f of FT){X.globalAlpha=Math.max(0,1-f.t);txt(f.s,f.x,f.y,15,f.c);X.globalAlpha=1}
 {const ci=DROPIMG.coin;if(ci.naturalWidth)X.drawImage(ci,170,38,16,16*ci.naturalHeight/ci.naturalWidth);txt(String(S.coins),192,52,13,'#ffd23f','left')}
 if(mode=='play')drawCmd();
-txt('XP  +'+xpForRun(S.kills.caca,S.kills.bomb,S.bosses),14,30,20,'#fff','left');txt('NÍVEL '+lvlNow(),W-14,30,14,'#cfe3ff','right');
+drawSnd();txt('XP  +'+xpForRun(S.kills.caca,S.kills.bomb,S.bosses),14,30,20,'#fff','left');txt('NÍVEL '+lvlNow(),W-14,30,14,'#cfe3ff','right');
 txt('FASE '+S.stage+'   ARMA '+P.level,14,52,13,'#cfe3ff','left');for(let i=0;i<P.lives;i++){const im=PLIMG[playIdx];if(im.naturalWidth)X.drawImage(im,W-32-i*26,44,22,22*im.naturalHeight/im.naturalWidth)}
 if(S.tr&&mode=='play'){const T=S.tr.t;let r=490;if(T>2&&T<2.8)r=490*(1-(T-2)/.8);else if(T>=2.8&&T<3.3)r=0;else if(T>=3.3)r=490*Math.min(1,(T-3.3)/.9);
 if(r<490){X.fillStyle='#000';X.beginPath();X.rect(0,0,W,H);X.arc(W/2,H/2,Math.max(r,0),0,7);X.fill('evenodd')}
 if(T>.2&&T<2)txt('FASE CONCLUÍDA!',W/2,H/2,34,'#ffe066');
 if(T>=2.8&&T<4.0){X.globalAlpha=T<3.6?1:(4-T)/.4;txt('FASE '+S.stage,W/2,H/2,48,'#fff');X.globalAlpha=1}}}
 function screen(a,b,c){X.fillStyle='#000a';X.fillRect(0,0,W,H);txt(a,W/2,H/2-60,44);txt(b,W/2,H/2-10,20,'#ffe066');txt(c,W/2,H/2+40,15,'#cfe3ff')}
-let last=0;function loop(t){if(document.body.dataset.mode!==mode)document.body.dataset.mode=mode;const dt=Math.min(.033,(t-last)/1000||0);last=t;
+let last=0;function loop(t){audioTick();if(document.body.dataset.mode!==mode)document.body.dataset.mode=mode;const dt=Math.min(.033,(t-last)/1000||0);last=t;
 if(mode=='over')S.ot+=dt;if(mode=='play')update(dt);else if(S){bgY+=40*dt}
 if(SCENES.includes(mode))drawScene();else draw();if(mode=='over')drawOver();
 requestAnimationFrame(loop)}
@@ -259,7 +265,7 @@ function drawMissions(){bgScene(.82);head('QUADRO DE MISSÕES');
  btn('JOGAR',W/2-110,320,220,52,'#ffc400');
  lockedCard('MODO INFINITO',410);lockedCard('MISSÕES DIÁRIAS',490);
  backBtn();drawToast()}
-function drawScene(){X.setTransform(2,0,0,2,0,0);({title:drawBase,hangar:drawHangar,shop:drawShop,missions:drawMissions,levelup:drawLevelUp})[mode]()}
+function drawScene(){X.setTransform(2,0,0,2,0,0);({title:drawBase,hangar:drawHangar,shop:drawShop,missions:drawMissions,levelup:drawLevelUp})[mode]();drawSnd()}
 function playNow(){playIdx=Math.max(0,PLANES.findIndex(p=>p.id===selId()));start()}
 function useBi(){const p=PLANES[bi];if(!ownsId(p.id)){mode='shop';return}if(selId()==p.id)return;
  if(logged()){const prev=cloud.state.selected;cloud.state.selected=p.id;chooseCloudPlane(p.id).then(ok=>{if(!ok){cloud.state.selected=prev;flash('Não foi possível trocar de avião.')}})}else{SAVE.sel=bi;persist()}
@@ -271,6 +277,7 @@ async function buy(i){const p=PLANES[i];if(busyBuy||ownsId(p.id))return;
  if(logged()){busyBuy=true;const r=await buyCloudPlane(p.id);busyBuy=false;flash(r&&!r.error?'Avião desbloqueado: '+p.nome:buyErr(r&&r.error))}
  else{SAVE.coins-=p.cost;SAVE.owned.push(p.id);persist();flash('Avião desbloqueado: '+p.nome)}}
 function tap(lx,ly){
+ if(Math.hypot(lx-W/2,ly-24)<24){toggleMute();return}
  if(mode=='levelup'){mode='title';return}
  if(mode=='title'){const h=HOT.find(h=>inR(lx,ly,h.x*SX,h.y*SY,h.w*SX,h.h*SY));if(!h)return;
   if(h.ok){mode=h.id;if(h.id=='hangar')bi=Math.max(0,PLANES.findIndex(p=>p.id===selId()))}else flash(h.nome+': em breve!');return}
@@ -286,10 +293,10 @@ function act(k){
  else if(mode=='over'&&S.ot>.8&&S.sync!='saving'&&(k=='Enter'||k==' '))goTitle()}
 
 reset();requestAnimationFrame(loop);
-addEventListener('keydown',e=>{if(e.target&&e.target.closest&&e.target.closest('#auth'))return;keys[e.key]=1;act(e.key);if(mode=='play'&&(e.key=='b'||e.key=='B'||e.key==' ')){useBomb();e.preventDefault()}if(mode=='play'&&e.key.length==1&&'1234'.includes(e.key))useSkill(+e.key-1);if(e.key.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keydown',e=>{if(e.target&&e.target.closest&&e.target.closest('#auth'))return;keys[e.key]=1;act(e.key);if(mode=='play'&&(e.key=='b'||e.key=='B'||e.key==' ')){useBomb();e.preventDefault()}if(mode=='play'&&e.key.length==1&&'1234'.includes(e.key))useSkill(+e.key-1);if(e.key=='m'||e.key=='M')toggleMute();if(e.key.startsWith('Arrow'))e.preventDefault()});
 addEventListener('keyup',e=>keys[e.key]=0);
 let drag=null;C.addEventListener('pointerdown',e=>{const r=C.getBoundingClientRect(),lx=(e.clientX-r.left)/r.width*W,ly=(e.clientY-r.top)/r.height*H;
-if(mode=='play'){if(cmdTap(lx,ly))return;drag={x:e.clientX,y:e.clientY};C.setPointerCapture(e.pointerId)}
+if(mode=='play'){if(Math.hypot(lx-W/2,ly-24)<24){toggleMute();return}if(cmdTap(lx,ly))return;drag={x:e.clientX,y:e.clientY};C.setPointerCapture(e.pointerId)}
 else if(mode=='over'){if(S.ot>.8&&S.sync!='saving')goTitle()}
 else tap(lx,ly)});
 C.addEventListener('pointermove',e=>{if(!drag||mode!='play')return;P.x=Math.max(20,Math.min(W-20,P.x+(e.clientX-drag.x)/sc*1.3));P.y=Math.max(40,Math.min(H-30,P.y+(e.clientY-drag.y)/sc*1.3));drag={x:e.clientX,y:e.clientY}});
