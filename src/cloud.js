@@ -40,3 +40,9 @@ export async function buyCloudPlane(planeId) {
   await refresh()
   return data
 }
+
+// Progresso da história (cartões vistos, capítulos concluídos, freio das 3 partidas)
+export async function saveStory(data) {
+  const { error } = await supabase.rpc('save_story', { p_data: data })
+  if (error) console.error(error)
+}

@@ -49,7 +49,8 @@ canvas { display: block; touch-action: none; }
 #userbar button:hover { color: var(--text); }
 body[data-mode="play"] #userbar,
 body[data-mode="over"] #userbar,
-body[data-mode="levelup"] #userbar { display: none; }
+body[data-mode="levelup"] #userbar,
+body[data-mode="card"] #userbar { display: none; }
 
 /* Tela de acesso */
 .overlay {

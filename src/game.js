@@ -27,7 +27,8 @@ import dChest from './assets/drops/bau-suprimentos.png'
 import dCore from './assets/drops/nucleo-energia.png'
 import { unlockAudio, syncAudio, playSfx, toggleMute, isMuted } from './audio.js'
 import { XP_TABLE, xpForRun, levelFromXp, levelProgress, powerOf, COIN } from './economy.js'
-import { cloud, submitRun, chooseCloudPlane, buyCloudPlane } from './cloud.js'
+import { cloud, submitRun, chooseCloudPlane, buyCloudPlane, saveStory as saveCloudStory } from './cloud.js'
+import { CHAPTERS, CARDS, AMBIENT, AMBIENT_A_CADA, CARD_ORDER } from './story.js'
 const PL_URLS=[pl0,pl1,pl2,pl3],BOSS_URLS=[boss1],BG_URLS=[bg1,bg2,bg3,bg4,bg5,bg6,bg7]
 const C=document.getElementById('c'),X=C.getContext('2d'),W=480,H=854;C.width=W*2;C.height=H*2;
 let sc=1;function fit(){sc=Math.min(innerWidth/W,innerHeight/H);C.style.width=W*sc+'px';C.style.height=H*sc+'px'}
@@ -63,7 +64,7 @@ const xpNow=()=>logged()?cloud.state.xp:SAVE.xp;
 const lvlNow=()=>logged()?cloud.state.level:levelFromXp(SAVE.xp);
 const selIdx=()=>Math.max(0,PLANES.findIndex(p=>p.id===selId()));
 const fm=n=>n.toLocaleString('pt-BR');
-let pendingLv=0,lvShow=1;
+let pendingLv=0,lvShow=1,Q=[],pendingCards=[];
 const errMsg=e=>e&&e.includes('too_fast')?'Aguarde alguns segundos entre as partidas.':e&&e.includes('implausible')?'O servidor recusou esta pontuação.':'Verifique a conexão e tente de novo.';
 addEventListener('tf-cloud',()=>{const i=PLANES.findIndex(p=>p.id===selId());bi=i>=0?i:0});
 function reset(){S={t:0,kills:{caca:0,bomb:0},bosses:0,coins:0,flash:0,stage:1,sp:1,sm:6,bt:40,boss:null,tr:{t:2.8,done:true},t0:performance.now(),sync:''};const pl=PLANES[playIdx];P={x:W/2,y:H-110,lives:pl.lives,inv:2,cd:0,level:1,pl,bombs:1,shield:0,energy:50,laser:0,scd:[0,0,0,0]};E=[];PB=[];EB=[];PU=[];PT=[];EX=[];FT=[]}
@@ -108,16 +109,15 @@ function useBomb(){if(mode!='play'||P.bombs<=0||(S.tr&&S.tr.t>2))return;P.bombs-
  EX.push({x:W/2,y:H/2,t:0,s:460});for(let i=0;i<5;i++)EX.push({x:60+Math.random()*(W-120),y:80+Math.random()*(H-220),t:-i*.07,s:120+Math.random()*80});
  for(const e of E.slice()){if(e.y>-30){e.hp-=e.k==2?40:e.k==1?40:99;e.f=.1;if(e.hp<=0)kill(e)}}}
 function kill(e){boom(e.x,e.y,e.k?14:6);explode(e);if(e.k==0){S.kills.caca++;P.energy=Math.min(100,P.energy+1)}else if(e.k==1){S.kills.bomb++;P.energy=Math.min(100,P.energy+6)}else{S.bosses++;P.energy=Math.min(100,P.energy+15)}
-dropFrom(e);if(e.k==2){S.boss=null;S.tr={t:0,done:false};EB=[]}
+dropFrom(e);if(e.k==2){S.boss=null;S.tr={t:0,done:!!S.story};EB=[];if(S.story){S.victory=true;S.vt=0}}
 E.splice(E.indexOf(e),1)}
 function hurt(){if(P.inv>0||P.shield>0)return;boom(P.x,P.y,40,'#9fd8ff');EX.push({x:P.x,y:P.y,t:0,s:96});P.lives--;P.inv=2;P.level=Math.max(1,P.level-1);EB=[];
-if(P.lives<=0){mode='over';S.ot=0;S.dur=Math.max((performance.now()-S.t0)/1000,S.t);S.xpRun=xpForRun(S.kills.caca,S.kills.bomb,S.bosses);
- if(logged()){S.sync='saving';S.res=null;submitRun('historia',S.stage,S.dur,{caca:S.kills.caca,bombardeiro:S.kills.bomb},S.bosses,S.coins).then(r=>{if(r&&!r.error){S.res=r;S.sync='ok';if(r.level_up)pendingLv=r.level_after}else{S.sync='err';S.err=(r&&r.error)||''}})}
- else{const a=levelFromXp(SAVE.xp);SAVE.xp+=S.xpRun;SAVE.coins+=S.coins;persist();const b=levelFromXp(SAVE.xp);S.res={xp_earned:S.xpRun,level_before:a,level_after:b,level_up:b>a,coins_earned:S.coins};if(b>a)pendingLv=b}}}
+if(P.lives<=0)endRun(false)}
 function update(dt){S.t+=dt;bgY+=60*dt;
 if(S.tr){const T=S.tr;T.t+=dt;if(T.t>=2.8&&!T.done){T.done=true;S.stage++;S.bt=40;E=[];PB=[];EB=[];PU=[];PT=[];EX=[];FT=[];P.x=W/2;P.y=H-110}if(T.t>=4.2)S.tr=null}
 const dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
 P.x=Math.max(20,Math.min(W-20,P.x+dx*P.pl.spd*dt));P.y=Math.max(40,Math.min(H-30,P.y+dy*P.pl.spd*dt));
+if(S.victory){S.vt+=dt;if(S.vt>1.9){S.victory=false;endRun(true);return}}
 P.inv-=dt;P.cd-=dt;if(S.tr)P.inv=Math.max(P.inv,.1);if(P.cd<=0&&!(S.tr&&S.tr.t>2)){shoot();P.cd=P.pl.cd}
 S.sp-=dt;if(S.sp<=0&&!S.boss&&!S.tr){S.sp=Math.max(1.3,3-S.stage*.25);const x0=70+Math.random()*(W-140),n=5,ph=Math.random()*6,fv=Math.floor(Math.random()*3);
 for(let i=0;i<n;i++)addE(0,x0+(i-2)*38,-20-Math.abs(i-2)*34,ph,fv)}
@@ -187,16 +187,24 @@ drawSnd();txt('XP  +'+xpForRun(S.kills.caca,S.kills.bomb,S.bosses),14,30,20,'#ff
 txt('FASE '+S.stage+'   ARMA '+P.level,14,52,13,'#cfe3ff','left');for(let i=0;i<P.lives;i++){const im=PLIMG[playIdx];if(im.naturalWidth)X.drawImage(im,W-32-i*26,44,22,22*im.naturalHeight/im.naturalWidth)}
 if(S.tr&&mode=='play'){const T=S.tr.t;let r=490;if(T>2&&T<2.8)r=490*(1-(T-2)/.8);else if(T>=2.8&&T<3.3)r=0;else if(T>=3.3)r=490*Math.min(1,(T-3.3)/.9);
 if(r<490){X.fillStyle='#000';X.beginPath();X.rect(0,0,W,H);X.arc(W/2,H/2,Math.max(r,0),0,7);X.fill('evenodd')}
-if(T>.2&&T<2)txt('FASE CONCLUÍDA!',W/2,H/2,34,'#ffe066');
+if(T>.2&&T<2)txt(S.story?'MISSÃO CUMPRIDA!':'FASE CONCLUÍDA!',W/2,H/2,34,'#ffe066');
 if(T>=2.8&&T<4.0){X.globalAlpha=T<3.6?1:(4-T)/.4;txt('FASE '+S.stage,W/2,H/2,48,'#fff');X.globalAlpha=1}}}
 function screen(a,b,c){X.fillStyle='#000a';X.fillRect(0,0,W,H);txt(a,W/2,H/2-60,44);txt(b,W/2,H/2-10,20,'#ffe066');txt(c,W/2,H/2+40,15,'#cfe3ff')}
 let last=0;function loop(t){audioTick();if(document.body.dataset.mode!==mode)document.body.dataset.mode=mode;const dt=Math.min(.033,(t-last)/1000||0);last=t;
 if(mode=='over')S.ot+=dt;if(mode=='play')update(dt);else if(S){bgY+=40*dt}
 if(SCENES.includes(mode))drawScene();else draw();if(mode=='over')drawOver();
 requestAnimationFrame(loop)}
-function start(){reset();mode='play'}
-function goTitle(){reset();if(pendingLv){lvShow=pendingLv;pendingLv=0;mode='levelup'}else mode='title'}
-function drawOver(){X.fillStyle='#000b';X.fillRect(0,0,W,H);txt('FIM DE JOGO',W/2,H/2-110,42);const r=S.res;
+function endRun(victory){mode='over';S.won=!!victory;S.ot=0;S.dur=Math.max((performance.now()-S.t0)/1000,S.t);S.xpRun=xpForRun(S.kills.caca,S.kills.bomb,S.bosses);const stg=Math.min(S.stage,S.bosses+1);
+ if(logged()){S.sync='saving';S.res=null;submitRun('historia',stg,S.dur,{caca:S.kills.caca,bombardeiro:S.kills.bomb},S.bosses,S.coins).then(r=>{if(r&&!r.error){S.res=r;S.sync='ok';if(r.level_up)pendingLv=r.level_after}else{S.sync='err';S.err=(r&&r.error)||''}})}
+ else{const a=levelFromXp(SAVE.xp);SAVE.xp+=S.xpRun;SAVE.coins+=S.coins;persist();const b=levelFromXp(SAVE.xp);S.res={xp_earned:S.xpRun,level_before:a,level_after:b,level_up:b>a,coins_earned:S.coins};if(b>a)pendingLv=b}
+ const st=story();st.since=(st.since||0)+1;
+ if(S.story&&victory){if(!st.done.includes(S.story))st.done.push(S.story);for(const c of CHAPTERS[S.story-1].encerramento)if(!st.seen.includes(c)&&!pendingCards.includes(c))pendingCards.push(c);if(pendingCards.length)st.since=0}
+ if(!pendingCards.length&&st.since>=AMBIENT_A_CADA){const nx=AMBIENT.find(c=>!st.seen.includes(c));if(nx){pendingCards.push(nx);st.since=0}}
+ saveStory()}
+function start(story){reset();mode='play';if(story){S.story=story;S.stage=CHAPTERS[story-1].cenario}}
+function goTitle(){reset();Q=[];if(pendingLv){Q.push({t:'lv',lv:pendingLv});pendingLv=0}for(const c of pendingCards)Q.push({t:'card',id:c});pendingCards=[];showNext()}
+function showNext(){const n=Q.shift();if(!n){mode='title';return}if(n.t=='lv'){lvShow=n.lv;mode='levelup'}else openCard(n.id,showNext)}
+function drawOver(){X.fillStyle='#000b';X.fillRect(0,0,W,H);txt(S.won?'MISSÃO CUMPRIDA!':'FIM DE JOGO',W/2,H/2-110,S.won?36:42,S.won?'#ffd23f':'#fff');const r=S.res;
  if(logged()&&S.sync=='saving')txt('Salvando na conta...',W/2,H/2-40,18,'#9fc4ff');
  else if(logged()&&S.sync!='ok'){txt('Não foi possível salvar esta partida.',W/2,H/2-40,16,'#ff8a7a');txt(errMsg(S.err),W/2,H/2-14,13,'#cfe3ff')}
  else if(r){txt('+'+r.xp_earned+' XP',W/2,H/2-50,26,'#9fe3ff');txt('+'+r.coins_earned+' moedas',W/2,H/2-14,22,'#ffd23f');
@@ -204,7 +212,7 @@ function drawOver(){X.fillStyle='#000b';X.fillRect(0,0,W,H);txt('FIM DE JOGO',W/
   if(r.cap_hit)txt('Teto diário de ganhos atingido: ganhos reduzidos',W/2,H/2+76,13,'#ffb36b');else if(r.level_up)txt('SUBIU DE NÍVEL!',W/2,H/2+76,16,'#7CFC9A')}
  if(S.ot>.8&&S.sync!='saving')txt('Toque para continuar',W/2,H/2+120,16,'#9fc4ff')}
 // ===== Área segura (base) e telas internas =====
-const SX=W/941,SY=H/1672,SCENES=['title','hangar','shop','missions','levelup'];
+const SX=W/941,SY=H/1672,SCENES=['title','hangar','shop','missions','levelup','chapters','archive','card'];
 const HOT=[
  {id:'hangar',nome:'HANGAR',x:260,y:45,w:430,h:375,ok:1,ly:432},
  {id:'shop',nome:'LOJA',x:55,y:820,w:255,h:210,ok:1,ly:1042},
@@ -259,14 +267,53 @@ function lockedCard(t,y){X.fillStyle='rgba(11,29,58,.7)';X.fillRect(20,y,440,64)
 function drawMissions(){bgScene(.82);head('QUADRO DE MISSÕES');
  const idx=Math.max(0,PLANES.findIndex(p=>p.id===selId())),p=PLANES[idx];
  X.fillStyle='rgba(11,29,58,.92)';X.fillRect(20,140,440,250);X.strokeStyle='#ffc400';X.lineWidth=2;X.strokeRect(20,140,440,250);
- txt('MODO HISTÓRIA',W/2,180,24,'#ffc400');txt('Enfrente as 7 fases e derrote os chefes.',W/2,208,14,'#cfe3ff');
+ txt('MODO HISTÓRIA',W/2,180,24,'#ffc400');txt('Capítulos com cartões e legendas da história.',W/2,208,14,'#cfe3ff');
  const im=PLIMG[idx];if(im.naturalWidth){const w=84,h=w*im.naturalHeight/im.naturalWidth;X.drawImage(im,36,232,w,h)}
  txt('Avião: '+p.nome,130,262,16,p.cor,'left');txt('Power '+powerOf(p)+'   •   troque no hangar',130,284,13,'#ffb36b','left');
- btn('JOGAR',W/2-110,320,220,52,'#ffc400');
+ btn('CAPÍTULOS',40,320,190,52,'#ffc400');btn('ARQUIVO',250,320,190,52,'#9fc4ff');
  lockedCard('MODO INFINITO',410);lockedCard('MISSÕES DIÁRIAS',490);
  backBtn();drawToast()}
-function drawScene(){X.setTransform(2,0,0,2,0,0);({title:drawBase,hangar:drawHangar,shop:drawShop,missions:drawMissions,levelup:drawLevelUp})[mode]();drawSnd()}
-function playNow(){playIdx=Math.max(0,PLANES.findIndex(p=>p.id===selId()));start()}
+// ===== Modo história: cartões, capítulos e arquivo =====
+const CARDIMG={};for(const [p,u] of Object.entries(import.meta.glob('./assets/story/cards/*.{jpg,jpeg,png,webp}',{eager:true,import:'default'})))CARDIMG[p.split('/').pop().replace(/\.[^.]+$/,'')]=ld(u);
+const normStory=s=>{s=s||{};if(!Array.isArray(s.seen))s.seen=[];if(!Array.isArray(s.done))s.done=[];if(typeof s.since!='number')s.since=0;return s};
+function story(){if(logged()){cloud.state.story=normStory(cloud.state.story);return cloud.state.story}SAVE.story=normStory(SAVE.story);return SAVE.story}
+function saveStory(){if(logged())saveCloudStory(cloud.state.story);else persist()}
+let CARD=null;
+function txtn(t,x,y,s,c,a){X.font=s+'px system-ui,sans-serif';X.textAlign=a||'center';X.fillStyle=c||'#fff';X.fillText(t,x,y)}
+function wrapLines(s,maxW){X.font='16px system-ui,sans-serif';const mw=t=>{const m=X.measureText(t);return m&&m.width!=null?m.width:t.length*8};const out=[];let cur='';for(const w of s.split(' ')){const t=cur?cur+' '+w:w;if(mw(t)>maxW&&cur){out.push(cur);cur=w}else cur=t}if(cur)out.push(cur);return out}
+function cardPage(){const c=CARD;c.lines=wrapLines(c.def.paginas[c.page],W-28-32);c.total=c.lines.reduce((a,l)=>a+l.length,0);c.t0=performance.now()}
+function openCard(id,done){const def=CARDS[id];if(!def){if(done)done();return}CARD={id,def,page:0,done:done||(()=>{mode='title'}),canSkip:story().seen.includes(id)};mode='card';cardPage()}
+const cardRev=()=>Math.min(CARD.total,Math.floor((performance.now()-CARD.t0)/1000*40));
+function finishCard(){const c=CARD,st=story();if(!st.seen.includes(c.id)){st.seen.push(c.id);saveStory()}CARD=null;c.done()}
+function cardTap(lx,ly,fromKey){const c=CARD;if(!c)return;if(!fromKey&&c.canSkip&&inR(lx,ly,W-100,12,88,32)){finishCard();return}
+ if(cardRev()<c.total){c.t0=performance.now()-c.total/40*1000-50;return}
+ if(c.page<c.def.paginas.length-1){c.page++;cardPage()}else finishCard()}
+function cover(im){if(!im||!im.naturalWidth)return false;const r=Math.max(W/im.naturalWidth,H/im.naturalHeight),w=im.naturalWidth*r,h=im.naturalHeight*r;X.drawImage(im,(W-w)/2,(H-h)/2,w,h);return true}
+function drawCard(){const c=CARD;if(!c)return;const d=c.def,art=CARDIMG[c.id];
+ if(!cover(art)){cover(BGS[((d.cenario||1)-1)%BGS.length]);X.fillStyle='rgba(2,10,30,'+(d.ambiente?.62:.4)+')';X.fillRect(0,0,W,H)}
+ for(let i=0;i<14;i++){X.fillStyle='rgba(2,8,24,'+(.07*i/1.2)+')';X.fillRect(0,H-380+i*27,W,27)}
+ X.fillStyle='rgba(5,14,34,.9)';X.fillRect(14,H-250,W-28,234);X.strokeStyle='rgba(159,196,255,.35)';X.lineWidth=1.5;X.strokeRect(14,H-250,W-28,234);
+ txt(d.titulo,30,H-224,12,'#ffc400','left');
+ let left=cardRev();for(let i=0;i<c.lines.length&&left>0;i++){txtn(c.lines[i].slice(0,left),30,H-192+i*24,16,'#fff','left');left-=c.lines[i].length}
+ if(cardRev()>=c.total&&Math.floor(performance.now()/450)%2==0)txt(c.page<d.paginas.length-1?'▶':'▼',W-34,H-28,16,'#ffc400');
+ if(c.canSkip){X.fillStyle='rgba(5,14,34,.8)';X.fillRect(W-100,12,88,32);txt('PULAR ▸',W-56,33,13,'#9fc4ff')}
+ if(d.paginas.length>1)txt((c.page+1)+' / '+d.paginas.length,30,H-30,11,'#8a99b0','left')}
+function drawChapters(){bgScene(.84);head('MODO HISTÓRIA');const st=story(),lv=lvlNow();
+ CHAPTERS.forEach((c,i)=>{const y=124+i*92,done=st.done.includes(c.id),open=c.pronto&&lv>=c.nivel;
+  X.fillStyle='rgba(11,29,58,.92)';X.fillRect(20,y,440,84);X.strokeStyle=done?'#7CFC9A':open?'#ffc400':'#3a4558';X.lineWidth=2;X.strokeRect(20,y,440,84);
+  const im=BGS[(c.cenario-1)%BGS.length];if(im&&im.naturalWidth){X.save();X.beginPath();X.rect(30,y+10,64,64);X.clip();const r=Math.max(64/im.naturalWidth,64/im.naturalHeight);X.drawImage(im,62-im.naturalWidth*r/2,y+42-im.naturalHeight*r/2,im.naturalWidth*r,im.naturalHeight*r);if(!open){X.fillStyle='rgba(2,10,30,.6)';X.fillRect(30,y+10,64,64)}X.restore()}
+  txt('CAPÍTULO '+c.id,108,y+30,12,open?'#ffc400':'#6b7a90','left');txt(c.nome,108,y+52,18,open?'#fff':'#8a99b0','left');
+  txt(done?'✓ concluído':!c.pronto?'em breve':lv<c.nivel?'libera no nível '+c.nivel:'disponível',108,y+72,12,done?'#7CFC9A':'#9fb0c8','left');
+  if(open)btn(done?'REJOGAR':'JOGAR',W-140,y+24,120,40,'#ffc400')});
+ backBtn();drawToast()}
+function startChapter(id){const c=CHAPTERS[id-1];if(!c||!c.pronto||lvlNow()<c.nivel)return;const seq=c.abertura.filter(k=>!story().seen.includes(k));
+ const chain=i=>{if(i>=seq.length){playIdx=selIdx();start(id);return}openCard(seq[i],()=>chain(i+1))};chain(0)}
+const archiveRows=()=>CARD_ORDER.filter(id=>story().seen.includes(id));
+function drawArchive(){bgScene(.84);head('ARQUIVO');const rows=archiveRows();
+ if(!rows.length)txt('Nenhum registro ainda. Jogue a história para desbloquear.',W/2,200,14,'#9fb0c8');
+ rows.forEach((id,i)=>{const y=124+i*58;X.fillStyle='rgba(11,29,58,.92)';X.fillRect(20,y,440,50);X.strokeStyle='#3a8dff';X.lineWidth=1.5;X.strokeRect(20,y,440,50);txt(CARDS[id].titulo,36,y+30,15,'#fff','left');txt('ver ▸',444,y+30,13,'#9fc4ff','right')});
+ backBtn();drawToast()}
+function drawScene(){X.setTransform(2,0,0,2,0,0);({title:drawBase,hangar:drawHangar,shop:drawShop,missions:drawMissions,levelup:drawLevelUp,chapters:drawChapters,archive:drawArchive,card:drawCard})[mode]();drawSnd()}
 function useBi(){const p=PLANES[bi];if(!ownsId(p.id)){mode='shop';return}if(selId()==p.id)return;
  if(logged()){const prev=cloud.state.selected;cloud.state.selected=p.id;chooseCloudPlane(p.id).then(ok=>{if(!ok){cloud.state.selected=prev;flash('Não foi possível trocar de avião.')}})}else{SAVE.sel=bi;persist()}
  playIdx=bi;flash('Avião em uso: '+p.nome)}
@@ -278,17 +325,22 @@ async function buy(i){const p=PLANES[i];if(busyBuy||ownsId(p.id))return;
  else{SAVE.coins-=p.cost;SAVE.owned.push(p.id);persist();flash('Avião desbloqueado: '+p.nome)}}
 function tap(lx,ly){
  if(Math.hypot(lx-W/2,ly-24)<24){toggleMute();return}
- if(mode=='levelup'){mode='title';return}
+ if(mode=='card'){cardTap(lx,ly);return}
+ if(mode=='levelup'){showNext();return}
  if(mode=='title'){const h=HOT.find(h=>inR(lx,ly,h.x*SX,h.y*SY,h.w*SX,h.h*SY));if(!h)return;
   if(h.ok){mode=h.id;if(h.id=='hangar')bi=Math.max(0,PLANES.findIndex(p=>p.id===selId()))}else flash(h.nome+': em breve!');return}
- if(inR(lx,ly,W/2-80,792,160,44)){mode='title';shopConfirm=-1;return}
+ if(inR(lx,ly,W/2-80,792,160,44)){mode=(mode=='chapters'||mode=='archive')?'missions':'title';shopConfirm=-1;return}
  if(mode=='hangar'){if(inR(lx,ly,W/2-140,640,280,56))useBi();else if(ly>180&&ly<600)act(lx<W/2?'ArrowLeft':'ArrowRight')}
  else if(mode=='shop'){PLANES.forEach((p,i)=>{if(inR(lx,ly,150,124+i*164+98,170,40))buy(i)})}
- else if(mode=='missions'){if(inR(lx,ly,W/2-110,320,220,52))playNow()}}
+ else if(mode=='missions'){if(inR(lx,ly,40,320,190,52))mode='chapters';else if(inR(lx,ly,250,320,190,52))mode='archive'}
+ else if(mode=='chapters'){CHAPTERS.forEach((c,i)=>{if(inR(lx,ly,W-140,124+i*92+24,120,40))startChapter(c.id)})}
+ else if(mode=='archive'){archiveRows().forEach((id,i)=>{if(inR(lx,ly,20,124+i*58,440,50))openCard(id,()=>{mode='archive'})})}}
 function act(k){
- if(mode=='levelup'){if(k=='Enter'||k==' '||k=='Escape')mode='title';return}
+ if(mode=='card'){if(k=='Enter'||k==' ')cardTap(0,0,true);else if(k=='Escape'&&CARD&&CARD.canSkip)finishCard();return}
+ if(mode=='levelup'){if(k=='Enter'||k==' '||k=='Escape')showNext();return}
+ if(mode=='chapters'||mode=='archive'){if(k=='Escape')mode='missions';return}
  if(mode=='hangar'){if(k=='ArrowLeft')bi=(bi+PLANES.length-1)%PLANES.length;else if(k=='ArrowRight')bi=(bi+1)%PLANES.length;else if(k=='Enter'||k==' ')useBi();else if(k=='Escape')mode='title'}
- else if(mode=='missions'){if(k=='Enter'||k==' ')playNow();else if(k=='Escape')mode='title'}
+ else if(mode=='missions'){if(k=='Enter'||k==' ')mode='chapters';else if(k=='Escape')mode='title'}
  else if(mode=='shop'){if(k=='Escape'){mode='title';shopConfirm=-1}}
  else if(mode=='over'&&S.ot>.8&&S.sync!='saving'&&(k=='Enter'||k==' '))goTitle()}
 

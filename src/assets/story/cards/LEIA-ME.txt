@@ -1,0 +1,13 @@
+ARTES DOS CARTÕES DA HISTÓRIA
+Coloque aqui as ilustrações (1080 x 1920 px, 9:16, JPG ou PNG) com o nome do cartão:
+
+P0   Prólogo
+1A   Capítulo 1, abertura        1B   Capítulo 1, encerramento
+2A   Capítulo 2, abertura        2B   Capítulo 2, encerramento
+3A / 3B   Capítulo 3      4A / 4B   Capítulo 4
+5A / 5B   Capítulo 5      6A / 6B   Capítulo 6
+7A / 7B   Capítulo 7
+
+Exemplo: P0.jpg, 1A.jpg, 1B.jpg
+O terço de baixo da imagem fica livre para a caixa de diálogo. Sem texto na imagem.
+Enquanto a arte de um cartão não existe, o jogo usa o cenário do capítulo escurecido.
