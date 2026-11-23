@@ -25,7 +25,8 @@ import dBomb from './assets/drops/bomba.png'
 import dShield from './assets/drops/escudo.png'
 import dChest from './assets/drops/bau-suprimentos.png'
 import dCore from './assets/drops/nucleo-energia.png'
-import { unlockAudio, syncAudio, playSfx, toggleMute, isMuted } from './audio.js'
+import { unlockAudio, syncAudio, playSfx, playVoice, toggleMute, isMuted } from './audio.js'
+import { RADIO, WHO } from './radio.js'
 import { XP_TABLE, xpForRun, levelFromXp, levelProgress, powerOf, COIN } from './economy.js'
 import { cloud, submitRun, chooseCloudPlane, buyCloudPlane, saveStory as saveCloudStory } from './cloud.js'
 import { CHAPTERS, CARDS, AMBIENT, AMBIENT_A_CADA, CARD_ORDER } from './story.js'
@@ -64,10 +65,10 @@ const xpNow=()=>logged()?cloud.state.xp:SAVE.xp;
 const lvlNow=()=>logged()?cloud.state.level:levelFromXp(SAVE.xp);
 const selIdx=()=>Math.max(0,PLANES.findIndex(p=>p.id===selId()));
 const fm=n=>n.toLocaleString('pt-BR');
-let pendingLv=0,lvShow=1,Q=[],pendingCards=[];
+let pendingLv=0,lvShow=1,Q=[],pendingCards=[],RAD=null,RADCD={};
 const errMsg=e=>e&&e.includes('too_fast')?'Aguarde alguns segundos entre as partidas.':e&&e.includes('implausible')?'O servidor recusou esta pontuação.':'Verifique a conexão e tente de novo.';
 addEventListener('tf-cloud',()=>{const i=PLANES.findIndex(p=>p.id===selId());bi=i>=0?i:0});
-function reset(){S={t:0,kills:{caca:0,bomb:0},bosses:0,coins:0,flash:0,stage:1,sp:1,sm:6,bt:40,boss:null,tr:{t:2.8,done:true},t0:performance.now(),sync:''};const pl=PLANES[playIdx];P={x:W/2,y:H-110,lives:pl.lives,inv:2,cd:0,level:1,pl,bombs:1,shield:0,energy:50,laser:0,scd:[0,0,0,0]};E=[];PB=[];EB=[];PU=[];PT=[];EX=[];FT=[]}
+function reset(){RAD=null;S={t:0,kills:{caca:0,bomb:0},bosses:0,coins:0,flash:0,stage:1,sp:1,sm:6,bt:40,boss:null,tr:{t:2.8,done:true},t0:performance.now(),sync:''};const pl=PLANES[playIdx];P={x:W/2,y:H-110,lives:pl.lives,inv:2,cd:0,level:1,pl,bombs:1,shield:0,energy:50,laser:0,scd:[0,0,0,0]};E=[];PB=[];EB=[];PU=[];PT=[];EX=[];FT=[]}
 function plane(x,y,s,c1,c2,down){X.save();X.translate(x,y);if(down)X.scale(1,-1);X.scale(s,s);
 X.fillStyle=c2;X.beginPath();X.moveTo(0,-14);X.lineTo(22,6);X.lineTo(22,11);X.lineTo(0,5);X.lineTo(-22,11);X.lineTo(-22,6);X.closePath();X.fill();
 X.fillRect(-9,12,18,3);X.fillStyle=c1;X.beginPath();X.ellipse(0,0,5,16,0,0,7);X.fill();
@@ -109,20 +110,23 @@ function useBomb(){if(mode!='play'||P.bombs<=0||(S.tr&&S.tr.t>2))return;P.bombs-
  EX.push({x:W/2,y:H/2,t:0,s:460});for(let i=0;i<5;i++)EX.push({x:60+Math.random()*(W-120),y:80+Math.random()*(H-220),t:-i*.07,s:120+Math.random()*80});
  for(const e of E.slice()){if(e.y>-30){e.hp-=e.k==2?40:e.k==1?40:99;e.f=.1;if(e.hp<=0)kill(e)}}}
 function kill(e){boom(e.x,e.y,e.k?14:6);explode(e);if(e.k==0){S.kills.caca++;P.energy=Math.min(100,P.energy+1)}else if(e.k==1){S.kills.bomb++;P.energy=Math.min(100,P.energy+6)}else{S.bosses++;P.energy=Math.min(100,P.energy+15)}
-dropFrom(e);if(e.k==2){S.boss=null;S.tr={t:0,done:!!S.story};EB=[];if(S.story){S.victory=true;S.vt=0}}
+dropFrom(e);if(e.k==2){S.boss=null;S.tr={t:0,done:!!S.story};EB=[];if(S.story){S.victory=true;S.vt=0;radio(S.story==1?'C1-06':'G11')}}
 E.splice(E.indexOf(e),1)}
 function hurt(){if(P.inv>0||P.shield>0)return;boom(P.x,P.y,40,'#9fd8ff');EX.push({x:P.x,y:P.y,t:0,s:96});P.lives--;P.inv=2;P.level=Math.max(1,P.level-1);EB=[];
-if(P.lives<=0)endRun(false)}
+if(P.lives==1)radio('G06');if(P.lives<=0)endRun(false)}
 function update(dt){S.t+=dt;bgY+=60*dt;
 if(S.tr){const T=S.tr;T.t+=dt;if(T.t>=2.8&&!T.done){T.done=true;S.stage++;S.bt=40;E=[];PB=[];EB=[];PU=[];PT=[];EX=[];FT=[];P.x=W/2;P.y=H-110}if(T.t>=4.2)S.tr=null}
 const dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
 P.x=Math.max(20,Math.min(W-20,P.x+dx*P.pl.spd*dt));P.y=Math.max(40,Math.min(H-30,P.y+dy*P.pl.spd*dt));
+if(!S.r1&&!S.tr){S.r1=1;radio('G01')}
+if(S.r8t&&S.t>=S.r8t){S.r8t=0;if(S.boss)radio('G08')}
+if(S.boss&&S.boss.hp>0){const f=S.boss.hp/S.boss.max;if(f<=.5&&!S.r9){S.r9=1;radio('G09')}if(f<=.15&&!S.r10){S.r10=1;radio('G10')}}
 if(S.victory){S.vt+=dt;if(S.vt>1.9){S.victory=false;endRun(true);return}}
 P.inv-=dt;P.cd-=dt;if(S.tr)P.inv=Math.max(P.inv,.1);if(P.cd<=0&&!(S.tr&&S.tr.t>2)){shoot();P.cd=P.pl.cd}
 S.sp-=dt;if(S.sp<=0&&!S.boss&&!S.tr){S.sp=Math.max(1.3,3-S.stage*.25);const x0=70+Math.random()*(W-140),n=5,ph=Math.random()*6,fv=Math.floor(Math.random()*3);
 for(let i=0;i<n;i++)addE(0,x0+(i-2)*38,-20-Math.abs(i-2)*34,ph,fv)}
 S.sm-=dt;if(S.sm<=0&&!S.boss&&!S.tr){S.sm=Math.max(4,8-S.stage);addE(1,70+Math.random()*(W-140),-50)}
-S.bt-=dt;if(S.bt<=0&&!S.boss&&!S.tr){S.boss=addE(2,W/2,-120)}
+S.bt-=dt;if(S.bt<=0&&!S.boss&&!S.tr){S.boss=addE(2,W/2,-120);radio('G07');S.r8t=S.t+3.6;S.r9=0;S.r10=0}
 for(const e of E.slice()){e.f-=dt;e.cd-=dt;
 if(e.k==0){e.y+=e.vy*dt;e.x+=Math.sin(S.t*2+e.ph)*e.vx*dt;if(e.cd<=0&&e.y>0&&e.y<H*.6){aim(e,170);e.cd=3+Math.random()*3}}
 else if(e.k==1){if(e.y<150)e.y+=e.vy*dt;else{e.x+=Math.sin(S.t+e.ph)*50*dt;e.y+=12*dt}
@@ -183,7 +187,7 @@ if(S.flash>0){X.fillStyle='rgba(255,240,200,'+Math.min(.8,S.flash*2)+')';X.fillR
 for(const f of FT){X.globalAlpha=Math.max(0,1-f.t);txt(f.s,f.x,f.y,15,f.c);X.globalAlpha=1}
 {const ci=DROPIMG.coin;if(ci.naturalWidth)X.drawImage(ci,170,38,16,16*ci.naturalHeight/ci.naturalWidth);txt(String(S.coins),192,52,13,'#ffd23f','left')}
 if(mode=='play')drawCmd();
-drawSnd();txt('XP  +'+xpForRun(S.kills.caca,S.kills.bomb,S.bosses),14,30,20,'#fff','left');txt('NÍVEL '+lvlNow(),W-14,30,14,'#cfe3ff','right');
+drawSnd();drawRadio();txt('XP  +'+xpForRun(S.kills.caca,S.kills.bomb,S.bosses),14,30,20,'#fff','left');txt('NÍVEL '+lvlNow(),W-14,30,14,'#cfe3ff','right');
 txt('FASE '+S.stage+'   ARMA '+P.level,14,52,13,'#cfe3ff','left');for(let i=0;i<P.lives;i++){const im=PLIMG[playIdx];if(im.naturalWidth)X.drawImage(im,W-32-i*26,44,22,22*im.naturalHeight/im.naturalWidth)}
 if(S.tr&&mode=='play'){const T=S.tr.t;let r=490;if(T>2&&T<2.8)r=490*(1-(T-2)/.8);else if(T>=2.8&&T<3.3)r=0;else if(T>=3.3)r=490*Math.min(1,(T-3.3)/.9);
 if(r<490){X.fillStyle='#000';X.beginPath();X.rect(0,0,W,H);X.arc(W/2,H/2,Math.max(r,0),0,7);X.fill('evenodd')}
@@ -194,7 +198,7 @@ let last=0;function loop(t){audioTick();if(document.body.dataset.mode!==mode)doc
 if(mode=='over')S.ot+=dt;if(mode=='play')update(dt);else if(S){bgY+=40*dt}
 if(SCENES.includes(mode))drawScene();else draw();if(mode=='over')drawOver();
 requestAnimationFrame(loop)}
-function endRun(victory){mode='over';S.won=!!victory;S.ot=0;S.dur=Math.max((performance.now()-S.t0)/1000,S.t);S.xpRun=xpForRun(S.kills.caca,S.kills.bomb,S.bosses);const stg=Math.min(S.stage,S.bosses+1);
+function endRun(victory){mode='over';if(!victory)radio('G05');S.won=!!victory;S.ot=0;S.dur=Math.max((performance.now()-S.t0)/1000,S.t);S.xpRun=xpForRun(S.kills.caca,S.kills.bomb,S.bosses);const stg=Math.min(S.stage,S.bosses+1);
  if(logged()){S.sync='saving';S.res=null;submitRun('historia',stg,S.dur,{caca:S.kills.caca,bombardeiro:S.kills.bomb},S.bosses,S.coins).then(r=>{if(r&&!r.error){S.res=r;S.sync='ok';if(r.level_up)pendingLv=r.level_after}else{S.sync='err';S.err=(r&&r.error)||''}})}
  else{const a=levelFromXp(SAVE.xp);SAVE.xp+=S.xpRun;SAVE.coins+=S.coins;persist();const b=levelFromXp(SAVE.xp);S.res={xp_earned:S.xpRun,level_before:a,level_after:b,level_up:b>a,coins_earned:S.coins};if(b>a)pendingLv=b}
  const st=story();st.since=(st.since||0)+1;
@@ -203,7 +207,7 @@ function endRun(victory){mode='over';S.won=!!victory;S.ot=0;S.dur=Math.max((perf
  saveStory()}
 function start(story){reset();mode='play';if(story){S.story=story;S.stage=CHAPTERS[story-1].cenario}}
 function goTitle(){reset();Q=[];if(pendingLv){Q.push({t:'lv',lv:pendingLv});pendingLv=0}for(const c of pendingCards)Q.push({t:'card',id:c});pendingCards=[];showNext()}
-function showNext(){const n=Q.shift();if(!n){mode='title';return}if(n.t=='lv'){lvShow=n.lv;mode='levelup'}else openCard(n.id,showNext)}
+function showNext(){const n=Q.shift();if(!n){mode='title';return}if(n.t=='lv'){lvShow=n.lv;mode='levelup';radio(n.lv==2?'G13':'G12')}else openCard(n.id,showNext)}
 function drawOver(){X.fillStyle='#000b';X.fillRect(0,0,W,H);txt(S.won?'MISSÃO CUMPRIDA!':'FIM DE JOGO',W/2,H/2-110,S.won?36:42,S.won?'#ffd23f':'#fff');const r=S.res;
  if(logged()&&S.sync=='saving')txt('Salvando na conta...',W/2,H/2-40,18,'#9fc4ff');
  else if(logged()&&S.sync!='ok'){txt('Não foi possível salvar esta partida.',W/2,H/2-40,16,'#ff8a7a');txt(errMsg(S.err),W/2,H/2-14,13,'#cfe3ff')}
@@ -280,7 +284,7 @@ function story(){if(logged()){cloud.state.story=normStory(cloud.state.story);ret
 function saveStory(){if(logged())saveCloudStory(cloud.state.story);else persist()}
 let CARD=null;
 function txtn(t,x,y,s,c,a){X.font=s+'px system-ui,sans-serif';X.textAlign=a||'center';X.fillStyle=c||'#fff';X.fillText(t,x,y)}
-function wrapLines(s,maxW){X.font='16px system-ui,sans-serif';const mw=t=>{const m=X.measureText(t);return m&&m.width!=null?m.width:t.length*8};const out=[];let cur='';for(const w of s.split(' ')){const t=cur?cur+' '+w:w;if(mw(t)>maxW&&cur){out.push(cur);cur=w}else cur=t}if(cur)out.push(cur);return out}
+function wrapLines(s,maxW,fs=16){X.font=fs+'px system-ui,sans-serif';const mw=t=>{const m=X.measureText(t);return m&&m.width!=null?m.width:t.length*fs*.5};const out=[];let cur='';for(const w of s.split(' ')){const t=cur?cur+' '+w:w;if(mw(t)>maxW&&cur){out.push(cur);cur=w}else cur=t}if(cur)out.push(cur);return out}
 function cardPage(){const c=CARD;c.lines=wrapLines(c.def.paginas[c.page],W-28-32);c.total=c.lines.reduce((a,l)=>a+l.length,0);c.t0=performance.now()}
 function openCard(id,done){const def=CARDS[id];if(!def){if(done)done();return}CARD={id,def,page:0,done:done||(()=>{mode='title'}),canSkip:story().seen.includes(id)};mode='card';cardPage()}
 const cardRev=()=>Math.min(CARD.total,Math.floor((performance.now()-CARD.t0)/1000*40));
@@ -313,7 +317,11 @@ function drawArchive(){bgScene(.84);head('ARQUIVO');const rows=archiveRows();
  if(!rows.length)txt('Nenhum registro ainda. Jogue a história para desbloquear.',W/2,200,14,'#9fb0c8');
  rows.forEach((id,i)=>{const y=124+i*58;X.fillStyle='rgba(11,29,58,.92)';X.fillRect(20,y,440,50);X.strokeStyle='#3a8dff';X.lineWidth=1.5;X.strokeRect(20,y,440,50);txt(CARDS[id].titulo,36,y+30,15,'#fff','left');txt('ver ▸',444,y+30,13,'#9fc4ff','right')});
  backBtn();drawToast()}
-function drawScene(){X.setTransform(2,0,0,2,0,0);({title:drawBase,hangar:drawHangar,shop:drawShop,missions:drawMissions,levelup:drawLevelUp,chapters:drawChapters,archive:drawArchive,card:drawCard})[mode]();drawSnd()}
+function radio(id){const r=RADIO[id];if(!r)return;const now=performance.now();if(r.cd&&RADCD[id]&&now<RADCD[id])return;if(RAD&&now<RAD.until&&RAD.pr>r.pr)return;RADCD[id]=now+(r.cd||0)*1000;playVoice(id);RAD={id,pr:r.pr,t0:now,until:now+r.dur*1000+400}}
+function drawRadio(){if(!RAD)return;const now=performance.now();if(now>RAD.until){RAD=null;return}const r=RADIO[RAD.id],w=WHO[r.who],lines=wrapLines(r.txt,W-48,14),h=30+lines.length*19;
+ X.globalAlpha=Math.max(0,Math.min(1,(RAD.until-now)/300,(now-RAD.t0)/120+.2));X.fillStyle='rgba(5,14,34,.86)';X.fillRect(12,92,W-24,h);X.strokeStyle=w.cor;X.lineWidth=1.5;X.strokeRect(12,92,W-24,h);
+ txt(w.nome,24,109,11,w.cor,'left');lines.forEach((l,i)=>txtn(l,24,129+i*19,14,'#fff','left'));X.globalAlpha=1}
+function drawScene(){X.setTransform(2,0,0,2,0,0);({title:drawBase,hangar:drawHangar,shop:drawShop,missions:drawMissions,levelup:drawLevelUp,chapters:drawChapters,archive:drawArchive,card:drawCard})[mode]();drawSnd();drawRadio()}
 function useBi(){const p=PLANES[bi];if(!ownsId(p.id)){mode='shop';return}if(selId()==p.id)return;
  if(logged()){const prev=cloud.state.selected;cloud.state.selected=p.id;chooseCloudPlane(p.id).then(ok=>{if(!ok){cloud.state.selected=prev;flash('Não foi possível trocar de avião.')}})}else{SAVE.sel=bi;persist()}
  playIdx=bi;flash('Avião em uso: '+p.nome)}

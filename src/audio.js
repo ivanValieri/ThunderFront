@@ -17,10 +17,11 @@ const MUSIC = {
   chefe: { mp3: chefMp3, ogg: chefOgg, loopStart: 7.012 },
 }
 const SFX = { 'tiro-comum': tiroComum, 'tiro-rapido': tiroRapido, bomba }
-const VOL = { music: 0.5, sfx: 0.9, gun: 0.3, bomba: 0.9 }
+const VOICE = Object.fromEntries(Object.entries(import.meta.glob('./assets/audio/radio/*.mp3', { eager: true, import: 'default' })).map(([p, u]) => [p.split('/').pop().replace('.mp3', ''), u]))
+const VOL = { music: 0.5, sfx: 0.9, gun: 0.3, bomba: 0.9, voice: 1 }
 
 const AC = globalThis.AudioContext || globalThis.webkitAudioContext
-const A = { ctx: null, master: null, mGain: null, sGain: null, muted: false, music: { name: null, node: null }, gun: { name: null, node: null }, buf: new Map() }
+const A = { ctx: null, master: null, mGain: null, sGain: null, muted: false, music: { name: null, node: null }, gun: { name: null, node: null }, voice: { node: null }, buf: new Map() }
 try { A.muted = localStorage.getItem('tf_mute') === '1' } catch { /* sem armazenamento */ }
 
 const useOgg = (() => {
@@ -46,6 +47,7 @@ export function unlockAudio() {
     if (A.ctx.resume) A.ctx.resume()
     // pré-carrega o que será usado primeiro, para não haver atraso
     load('m:safe', pickMusic('safe')); load('s:bomba', SFX.bomba); load('s:tiro-comum', SFX['tiro-comum']); load('s:tiro-rapido', SFX['tiro-rapido'])
+    for (const id of Object.keys(VOICE)) load('v:' + id, VOICE[id])
   } catch (e) { console.error('áudio indisponível', e); A.ctx = null }
 }
 for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, unlockAudio, { capture: true, passive: true })
@@ -101,5 +103,22 @@ export function playSfx(name) {
     if (!buf) return
     const g = A.ctx.createGain(); g.gain.value = VOL[name] || 1; g.connect(A.sGain)
     const s = A.ctx.createBufferSource(); s.buffer = buf; s.connect(g); s.start()
+  })
+}
+
+// Fala de rádio: toca por cima dos efeitos e abaixa a música enquanto dura
+export function playVoice(id) {
+  if (!A.ctx || !VOICE[id]) return
+  load('v:' + id, VOICE[id]).then((buf) => {
+    if (!buf) return
+    stopNode(A.voice, 0.08)
+    const g = A.ctx.createGain(); g.gain.value = VOL.voice; g.connect(A.sGain)
+    const s = A.ctx.createBufferSource(); s.buffer = buf; s.connect(g); s.start()
+    A.voice.node = { s, g }
+    const t = A.ctx.currentTime, m = A.mGain.gain
+    m.cancelScheduledValues(t); m.setValueAtTime(m.value, t)
+    m.linearRampToValueAtTime(VOL.music * 0.45, t + 0.15)
+    m.setValueAtTime(VOL.music * 0.45, t + 0.15 + buf.duration)
+    m.linearRampToValueAtTime(VOL.music, t + 0.65 + buf.duration)
   })
 }
