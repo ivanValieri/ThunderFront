@@ -278,7 +278,9 @@ function drawMissions(){bgScene(.82);head('QUADRO DE MISSÕES');
  lockedCard('MODO INFINITO',410);lockedCard('MISSÕES DIÁRIAS',490);
  backBtn();drawToast()}
 // ===== Modo história: cartões, capítulos e arquivo =====
-const CARDIMG={};for(const [p,u] of Object.entries(import.meta.glob('./assets/story/cards/*.{jpg,jpeg,png,webp}',{eager:true,import:'default'})))CARDIMG[p.split('/').pop().replace(/\.[^.]+$/,'')]=ld(u);
+const CARDURL={},CARDIMG={};for(const [p,u] of Object.entries(import.meta.glob('./assets/story/cards/*.{jpg,jpeg,png,webp}',{eager:true,import:'default'})))CARDURL[p.split('/').pop().replace(/\.[^.]+$/,'')]=u;
+// as artes dos cartões só são baixadas quando vão aparecer (e a próxima já é pré-carregada)
+const cardImg=id=>{if(CARDIMG[id])return CARDIMG[id];if(!CARDURL[id])return null;const im=CARDIMG[id]=ld(CARDURL[id]);im.onerror=()=>{im.failed=true};return im};
 const normStory=s=>{s=s||{};if(!Array.isArray(s.seen))s.seen=[];if(!Array.isArray(s.done))s.done=[];if(typeof s.since!='number')s.since=0;return s};
 function story(){if(logged()){cloud.state.story=normStory(cloud.state.story);return cloud.state.story}SAVE.story=normStory(SAVE.story);return SAVE.story}
 function saveStory(){if(logged())saveCloudStory(cloud.state.story);else persist()}
@@ -286,15 +288,16 @@ let CARD=null;
 function txtn(t,x,y,s,c,a){X.font=s+'px system-ui,sans-serif';X.textAlign=a||'center';X.fillStyle=c||'#fff';X.fillText(t,x,y)}
 function wrapLines(s,maxW,fs=16){X.font=fs+'px system-ui,sans-serif';const mw=t=>{const m=X.measureText(t);return m&&m.width!=null?m.width:t.length*fs*.5};const out=[];let cur='';for(const w of s.split(' ')){const t=cur?cur+' '+w:w;if(mw(t)>maxW&&cur){out.push(cur);cur=w}else cur=t}if(cur)out.push(cur);return out}
 function cardPage(){const c=CARD;c.lines=wrapLines(c.def.paginas[c.page],W-28-32);c.total=c.lines.reduce((a,l)=>a+l.length,0);c.t0=performance.now()}
-function openCard(id,done){const def=CARDS[id];if(!def){if(done)done();return}CARD={id,def,page:0,done:done||(()=>{mode='title'}),canSkip:story().seen.includes(id)};mode='card';cardPage()}
+function openCard(id,done){const def=CARDS[id];if(!def){if(done)done();return}cardImg(id);CARD={id,def,page:0,done:done||(()=>{mode='title'}),canSkip:story().seen.includes(id)};mode='card';cardPage()}
 const cardRev=()=>Math.min(CARD.total,Math.floor((performance.now()-CARD.t0)/1000*40));
 function finishCard(){const c=CARD,st=story();if(!st.seen.includes(c.id)){st.seen.push(c.id);saveStory()}CARD=null;c.done()}
 function cardTap(lx,ly,fromKey){const c=CARD;if(!c)return;if(!fromKey&&c.canSkip&&inR(lx,ly,W-100,12,88,32)){finishCard();return}
  if(cardRev()<c.total){c.t0=performance.now()-c.total/40*1000-50;return}
  if(c.page<c.def.paginas.length-1){c.page++;cardPage()}else finishCard()}
 function cover(im){if(!im||!im.naturalWidth)return false;const r=Math.max(W/im.naturalWidth,H/im.naturalHeight),w=im.naturalWidth*r,h=im.naturalHeight*r;X.drawImage(im,(W-w)/2,(H-h)/2,w,h);return true}
-function drawCard(){const c=CARD;if(!c)return;const d=c.def,art=CARDIMG[c.id];
- if(!cover(art)){cover(BGS[((d.cenario||1)-1)%BGS.length]);X.fillStyle='rgba(2,10,30,'+(d.ambiente?.62:.4)+')';X.fillRect(0,0,W,H)}
+function drawCard(){const c=CARD;if(!c)return;const d=c.def,art=cardImg(c.id);
+ if(art&&!art.failed&&!art.naturalWidth){X.fillStyle='#050e22';X.fillRect(0,0,W,H)}
+ else if(!cover(art)){cover(BGS[((d.cenario||1)-1)%BGS.length]);X.fillStyle='rgba(2,10,30,'+(d.ambiente?.62:.4)+')';X.fillRect(0,0,W,H)}
  for(let i=0;i<14;i++){X.fillStyle='rgba(2,8,24,'+(.07*i/1.2)+')';X.fillRect(0,H-380+i*27,W,27)}
  X.fillStyle='rgba(5,14,34,.9)';X.fillRect(14,H-250,W-28,234);X.strokeStyle='rgba(159,196,255,.35)';X.lineWidth=1.5;X.strokeRect(14,H-250,W-28,234);
  txt(d.titulo,30,H-224,12,'#ffc400','left');
@@ -310,7 +313,7 @@ function drawChapters(){bgScene(.84);head('MODO HISTÓRIA');const st=story(),lv=
   txt(done?'✓ concluído':!c.pronto?'em breve':lv<c.nivel?'libera no nível '+c.nivel:'disponível',108,y+72,12,done?'#7CFC9A':'#9fb0c8','left');
   if(open)btn(done?'REJOGAR':'JOGAR',W-140,y+24,120,40,'#ffc400')});
  backBtn();drawToast()}
-function startChapter(id){const c=CHAPTERS[id-1];if(!c||!c.pronto||lvlNow()<c.nivel)return;const seq=c.abertura.filter(k=>!story().seen.includes(k));
+function startChapter(id){const c=CHAPTERS[id-1];if(!c||!c.pronto||lvlNow()<c.nivel)return;const seq=c.abertura.filter(k=>!story().seen.includes(k));seq.forEach(cardImg);c.encerramento.forEach(cardImg);
  const chain=i=>{if(i>=seq.length){playIdx=selIdx();start(id);return}openCard(seq[i],()=>chain(i+1))};chain(0)}
 const archiveRows=()=>CARD_ORDER.filter(id=>story().seen.includes(id));
 function drawArchive(){bgScene(.84);head('ARQUIVO');const rows=archiveRows();
